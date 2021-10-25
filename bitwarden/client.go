@@ -24,33 +24,20 @@ func NewClient(password string) (*Client, error) {
 	}
 	c.Session = session
 
-	_, err = RunCommand("bw", "sync", "--session", c.Session)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
+	c.Sync()
 
 	return &c, nil
 }
 
-type Collection struct {
-	ExternalId     string `json:"externalId"`
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Object         string `json:"object"`
-	OrganizationId string `json:"organizationId"`
-}
-
-func ListCollections(session string) []Collection {
-	out, err := RunCommand("bw", "list", "collections", "--session", session)
-
-	var decoded []Collection
-	err = json.Unmarshal([]byte(out), &decoded)
+func (c *Client) Sync() {
+	log.Printf("Running sync...")
+	out, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
 	if err != nil {
+		log.Printf(out)
 		log.Fatal(err)
 	}
 
-	return decoded
+	log.Printf("Sync done...")
 }
 
 type ItemLoginURI struct {
@@ -86,36 +73,31 @@ type Item struct {
 	RevisionDate   time.Time      `json:"revisionDate"`
 }
 
-func ListItems(session string, collectionId string) []Item {
-	out, err := RunCommand("bw", "list", "items", "--collectionid", collectionId, "--session", session)
-
-	var decoded []Item
-	err = json.Unmarshal([]byte(out), &decoded)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return decoded
-}
-
 type SecureNoteCreate struct {
-	OrganizationId string   `json:"organizationId"`
-	FolderID       string   `json:"folderId"`
-	Name           string   `json:"name"`
-	Notes          string   `json:"notes"`
-	Favorite       bool     `json:"favorite"`
-	CollectionIDs  []string `json:"collectionIds"`
-	Type           int      `json:"type"`
+	OrganizationId string         `json:"organizationId"`
+	FolderID       string         `json:"folderId"`
+	Name           string         `json:"name"`
+	Notes          string         `json:"notes"`
+	Favorite       bool           `json:"favorite"`
+	CollectionIDs  []string       `json:"collectionIds"`
+	Type           int            `json:"type"`
+	Reprompt       int            `json:"reprompt"`
+	SecureNote     ItemSecureNote `json:"secureNote"`
 }
 
 func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
-	log.Printf("Running sync...")
-	_, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
-	if err != nil {
-		return nil, err
-	}
+	c.Sync()
 
-	log.Printf("Sync done...")
+	var reprompt int
+	if !secureNote.Reprompt.Null {
+		if secureNote.Reprompt.Value {
+			reprompt = 1
+		} else {
+			reprompt = 0
+		}
+	} else {
+		reprompt = 0
+	}
 
 	createPayload := SecureNoteCreate{
 		OrganizationId: secureNote.OrganizationId.Value,
@@ -124,7 +106,9 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 		Notes:          secureNote.Notes.Value,
 		Favorite:       secureNote.Favorite.Value,
 		CollectionIDs:  secureNote.CollectionIDs,
-		Type:           1,
+		Type:           2,
+		Reprompt:       reprompt,
+		SecureNote:     ItemSecureNote{Type: 0},
 	}
 
 	log.Printf("To JSON...")
@@ -144,6 +128,7 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 	out, err := RunCommand(
 		"bw", "create", "item", "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
 	)
+	log.Printf(out)
 	if err != nil {
 		return nil, err
 	}

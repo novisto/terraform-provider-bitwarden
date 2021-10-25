@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     bitwarden = {
-      source = "registry.novisto.com/novisto/bitwarden"
+      source = "registry.novisto.net/novisto/bitwarden"
 
     }
   }
@@ -24,6 +24,9 @@ locals {
 resource "bitwarden_secure_note" "platform_db_creds" {
   organization_id = "df4736bb-2f70-47ac-98cb-ad7401042241"
   collection_ids  = ["d42f510e-6f45-404a-8a70-ad8d00f6cadf"]
-  name            = "Platform DB Credentials"
+  name            = "TEST DELETE ME - Platform DB Credentials"
   notes           = jsonencode(local.platform_db_creds)
+  favorite        = false
+  reprompt        = false
+  folder_id       = "ebcd4fe6-d0dc-44e4-9ee7-adcc01556bef"
 }

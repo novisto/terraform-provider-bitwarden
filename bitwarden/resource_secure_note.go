@@ -12,7 +12,6 @@ import (
 type resourceSecureNoteType struct{}
 
 func (r resourceSecureNoteType) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	// TODO: HERE
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
 			"object": {
@@ -36,7 +35,7 @@ func (r resourceSecureNoteType) GetSchema(_ context.Context) (tfsdk.Schema, diag
 				Computed: true,
 			},
 			"reprompt": {
-				Type: types.NumberType,
+				Type: types.BoolType,
 				Optional: true,
 			},
 			"name": {
@@ -90,7 +89,7 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 	// Retrieve values from plan
 	var plan SecureNote
 	diags := req.Plan.Get(ctx, &plan)
-	log.Printf("%+v\n", plan)
+	log.Printf("Plan: %+v\n", plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -101,20 +100,38 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 		log.Fatal(err)
 	}
 
-	// TODO: HERE
+	log.Printf("BW Result: %+v\n", secureNote)
+
 	var result = SecureNote{
 		Object:         types.String{Value: secureNote.Object},
 		ID:             types.String{Value: secureNote.ID},
 		OrganizationId: types.String{Value: secureNote.OrganizationId},
-		FolderID:       types.String{Value: secureNote.FolderID},
 		Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-		Reprompt:       types.Number{Value: big.NewFloat(float64(secureNote.Reprompt))},
 		Name:           types.String{Value: secureNote.Name},
 		Notes:          types.String{Value: secureNote.Notes},
-		Favorite:       types.Bool{Value: secureNote.Favorite},
 		CollectionIDs:  secureNote.CollectionIDs,
 		RevisionDate:   types.String{Value: secureNote.RevisionDate.String()},
 	}
+
+	if !plan.FolderID.Null {
+		result.FolderID = types.String{Value: secureNote.FolderID}
+	} else {
+		result.FolderID = types.String{Null: true}
+	}
+
+	if !plan.Favorite.Null {
+		result.Favorite = types.Bool{Value: secureNote.Favorite}
+	} else {
+		result.Favorite = types.Bool{Null: true}
+	}
+
+	if !plan.Reprompt.Null {
+		result.Reprompt = types.Bool{Value: plan.Reprompt.Value}
+	} else {
+		result.Reprompt = types.Bool{Null: true}
+	}
+
+	log.Printf("To State: %+v\n", result)
 
 	diags = resp.State.Set(ctx, result)
 	resp.Diagnostics.Append(diags...)
@@ -126,14 +143,14 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 // Read resource information
 func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
 	// Get current state
-	var plan SecureNote
-	diags := req.State.Get(ctx, &plan)
+	var state SecureNote
+	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	secureNoteId := plan.ID.Value
+	secureNoteId := state.ID.Value
 
 	// Get order current value
 	secureNote, err := r.p.client.GetItem(secureNoteId)
@@ -145,14 +162,20 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 		return
 	}
 
-	// TODO: HERE
-	state := SecureNote{
+	var reprompt types.Bool
+	if !state.Reprompt.Null {
+		reprompt = types.Bool{Value: secureNote.Reprompt == 1}
+	} else {
+		reprompt = types.Bool{Null: true}
+	}
+
+	newState := SecureNote{
 		Object:         types.String{Value: secureNote.Object},
 		ID:             types.String{Value: secureNote.ID},
 		OrganizationId: types.String{Value: secureNote.OrganizationId},
 		FolderID:       types.String{Value: secureNote.FolderID},
 		Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-		Reprompt:       types.Number{Value: big.NewFloat(float64(secureNote.Reprompt))},
+		Reprompt:       reprompt,
 		Name:           types.String{Value: secureNote.Name},
 		Notes:          types.String{Value: secureNote.Notes},
 		Favorite:       types.Bool{Value: secureNote.Favorite},
@@ -161,7 +184,7 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 	}
 
 	// Set state
-	diags = resp.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &newState)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
