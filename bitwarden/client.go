@@ -7,39 +7,6 @@ import (
 	"time"
 )
 
-type Client struct {
-	Password string
-	Session  string
-}
-
-func NewClient(password string) (*Client, error) {
-	c := Client{Password: password}
-
-	log.Printf("Created client")
-
-	session, err := RunCommand("bw", "unlock", c.Password, "--raw")
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	c.Session = session
-
-	c.Sync()
-
-	return &c, nil
-}
-
-func (c *Client) Sync() {
-	log.Printf("Running sync...")
-	out, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
-	if err != nil {
-		log.Printf(out)
-		log.Fatal(err)
-	}
-
-	log.Printf("Sync done...")
-}
-
 type ItemLoginURI struct {
 	Match int    `json:"match"`
 	URI   string `json:"uri"`
@@ -85,7 +52,40 @@ type SecureNoteCreate struct {
 	SecureNote     ItemSecureNote `json:"secureNote"`
 }
 
-func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
+type Client struct {
+	Password string
+	Session  string
+}
+
+func NewClient(password string) (*Client, error) {
+	c := Client{Password: password}
+
+	log.Printf("Created client")
+
+	session, err := RunCommand("bw", "unlock", c.Password, "--raw")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	c.Session = session
+
+	c.Sync()
+
+	return &c, nil
+}
+
+func (c *Client) Sync() {
+	log.Printf("Running sync...")
+	out, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
+	if err != nil {
+		log.Printf(out)
+		log.Fatal(err)
+	}
+
+	log.Printf("Sync done...")
+}
+
+func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, string, error) {
 	c.Sync()
 
 	var reprompt int
@@ -115,7 +115,7 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 
 	marshal, err := json.Marshal(createPayload)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	log.Printf("Got JSON: " + string(marshal[:]))
@@ -130,34 +130,43 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 	)
 	log.Printf(out)
 	if err != nil {
-		return nil, err
+		return nil, out, err
 	}
 
 	var decoded Item
 	err = json.Unmarshal([]byte(out), &decoded)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return &decoded, nil
+	return &decoded, out, nil
 }
 
-func (c *Client) GetItem(id string) (*Item, error) {
-	_, err := RunCommand("bw", "sync", "-f")
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) GetItem(id string) (*Item, string, error) {
+	c.Sync()
 
-	out, err := RunCommand("bw", "get", "item", id)
+	out, err := RunCommand("bw", "get", "item", id, "--session", c.Session)
 	if err != nil {
-		return nil, err
+		return nil, out, err
 	}
 
 	var decoded Item
 	err = json.Unmarshal([]byte(out), &decoded)
 	if err != nil {
-		return nil, err
+		return nil, out, err
 	}
 
-	return &decoded, nil
+	return &decoded, out, nil
+}
+
+
+func (c *Client) DeleteItem(id string) (string, error) {
+	c.Sync()
+
+	out, err := RunCommand("bw", "delete", "item", id, "--session", c.Session)
+	if err != nil {
+		return out, err
+	}
+
+	return out, nil
 }
