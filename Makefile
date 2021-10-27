@@ -1,5 +1,5 @@
 TEST?=$$(go list ./... | grep -v 'vendor')
-HOSTNAME=registry.novisto.net
+HOSTNAME=registry.terraform.io
 NAMESPACE=novisto
 NAME=bitwarden
 BINARY=terraform-provider-${NAME}

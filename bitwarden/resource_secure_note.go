@@ -187,34 +187,6 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 		return
 	}
 
-	//var reprompt types.Bool
-	//if !state.Reprompt.Null {
-	//	reprompt = types.Bool{Value: secureNote.Reprompt == 1}
-	//} else {
-	//	reprompt = types.Bool{Null: true}
-	//}
-	//
-	//var favorite types.Bool
-	//if !state.Favorite.Null {
-	//	favorite = types.Bool{Value: secureNote.Favorite}
-	//} else {
-	//	favorite = types.Bool{Null: true}
-	//}
-	//
-	//newState := SecureNote{
-	//	Object:         types.String{Value: secureNote.Object},
-	//	ID:             types.String{Value: secureNote.ID},
-	//	OrganizationId: types.String{Value: secureNote.OrganizationId},
-	//	FolderID:       types.String{Value: secureNote.FolderID},
-	//	Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-	//	Reprompt:       reprompt,
-	//	Name:           types.String{Value: secureNote.Name},
-	//	Notes:          types.String{Value: secureNote.Notes},
-	//	Favorite:       favorite,
-	//	CollectionIDs:  secureNote.CollectionIDs,
-	//	RevisionDate:   types.String{Value: secureNote.RevisionDate},
-	//}
-
 	newState := convertItemToState(secureNote, state)
 
 	diags = resp.State.Set(ctx, &newState)
