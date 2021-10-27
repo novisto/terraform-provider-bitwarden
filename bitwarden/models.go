@@ -2,6 +2,7 @@ package bitwarden
 
 import "github.com/hashicorp/terraform-plugin-framework/types"
 
+// SecureNote Represents the "bitwarden_secure_note" resource
 type SecureNote struct {
 	Object         types.String `tfsdk:"object"`
 	ID             types.String `tfsdk:"id"`

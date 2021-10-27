@@ -2,6 +2,7 @@ package bitwarden
 
 import (
 	"context"
+	"fmt"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -17,7 +18,7 @@ type provider struct {
 	client     *Client
 }
 
-func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (p *provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
 			"password": {
@@ -30,11 +31,9 @@ func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostic
 	}, nil
 }
 
-// Provider schema struct
 type providerData struct {
 	Password types.String `tfsdk:"password"`
 }
-
 
 func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProviderRequest, response *tfsdk.ConfigureProviderResponse) {
 	// Retrieve provider data from configuration
@@ -56,6 +55,7 @@ func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProvide
 		return
 	}
 
+	// If password is not provided in the config, try to get it from the environment
 	if config.Password.Null {
 		password = os.Getenv("BW_PASSWORD")
 	} else {
@@ -63,7 +63,7 @@ func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProvide
 	}
 
 	if password == "" {
-		// Error vs warning - empty value must stop execution
+		// Cannot continue without a password
 		response.Diagnostics.AddError(
 			"Unable to find password",
 			"password cannot be an empty string",
@@ -71,12 +71,12 @@ func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProvide
 		return
 	}
 
-	// Create a new HashiCups client and set it to the provider client
-	c, err := NewClient(password)
+	// Create a new BitWarden client and set it to the provider client
+	c, out, err := NewClient(password)
 	if err != nil {
 		response.Diagnostics.AddError(
 			"Unable to create client",
-			"Unable to create BitWarden client:\n\n"+err.Error(),
+			fmt.Sprintf("Unable to create BitWarden client: %s\n%s", out, err.Error()),
 		)
 		return
 	}
