@@ -3,7 +3,6 @@ package bitwarden
 import (
 	"encoding/base64"
 	"encoding/json"
-	"time"
 )
 
 type ItemLoginURI struct {
@@ -16,7 +15,7 @@ type ItemLogin struct {
 	Username             string         `json:"username"`
 	Password             string         `json:"password"`
 	TOTP                 string         `json:"totp"`
-	PasswordRevisionDate time.Time      `json:"passwordRevisionDate"`
+	PasswordRevisionDate string         `json:"passwordRevisionDate"`
 }
 
 type ItemSecureNote struct {
@@ -37,7 +36,7 @@ type Item struct {
 	Login          ItemLogin      `json:"login"`
 	SecureNote     ItemSecureNote `json:"secureNote"`
 	CollectionIDs  []string       `json:"collectionIds"`
-	RevisionDate   time.Time      `json:"revisionDate"`
+	RevisionDate   string         `json:"revisionDate"`
 }
 
 // ItemCreate Represents the create and update payload for an item in the bw CLI

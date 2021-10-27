@@ -12,6 +12,38 @@ import (
 var providerErrorTitle = "Provider not configured"
 var providerErrorMessage = "The provider hasn't been configured before apply, likely because it depends on an unknown value from another resource. This leads to weird stuff happening, so we'd prefer if you didn't do that. Thanks!"
 
+func convertItemToState(item *Item, resource SecureNote) SecureNote {
+	var result = SecureNote{
+		Object:         types.String{Value: item.Object},
+		ID:             types.String{Value: item.ID},
+		OrganizationId: types.String{Value: item.OrganizationId},
+		Type:           types.Number{Value: big.NewFloat(float64(item.Type))},
+		Name:           types.String{Value: item.Name},
+		Notes:          types.String{Value: item.Notes},
+		CollectionIDs:  item.CollectionIDs,
+		RevisionDate:   types.String{Value: item.RevisionDate},
+	}
+
+	if !resource.FolderID.Null {
+		result.FolderID = types.String{Value: item.FolderID}
+	} else {
+		result.FolderID = types.String{Null: true}
+	}
+
+	if !resource.Favorite.Null {
+		result.Favorite = types.Bool{Value: item.Favorite}
+	} else {
+		result.Favorite = types.Bool{Null: true}
+	}
+
+	if !resource.Reprompt.Null {
+		result.Reprompt = types.Bool{Value: resource.Reprompt.Value}
+	} else {
+		result.Reprompt = types.Bool{Null: true}
+	}
+	return result
+}
+
 type resourceSecureNoteType struct{}
 
 func (r resourceSecureNoteType) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
@@ -113,34 +145,16 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 		return
 	}
 
-	var result = SecureNote{
-		Object:         types.String{Value: secureNote.Object},
-		ID:             types.String{Value: secureNote.ID},
-		OrganizationId: types.String{Value: secureNote.OrganizationId},
-		Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-		Name:           types.String{Value: secureNote.Name},
-		Notes:          types.String{Value: secureNote.Notes},
-		CollectionIDs:  secureNote.CollectionIDs,
-		RevisionDate:   types.String{Value: secureNote.RevisionDate.String()},
+	secureNote, out, err = r.p.client.GetItem(secureNote.ID)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating secure note",
+			fmt.Sprintf("Could create secure note: %s\n%s", out, err.Error()),
+		)
+		return
 	}
 
-	if !plan.FolderID.Null {
-		result.FolderID = types.String{Value: secureNote.FolderID}
-	} else {
-		result.FolderID = types.String{Null: true}
-	}
-
-	if !plan.Favorite.Null {
-		result.Favorite = types.Bool{Value: secureNote.Favorite}
-	} else {
-		result.Favorite = types.Bool{Null: true}
-	}
-
-	if !plan.Reprompt.Null {
-		result.Reprompt = types.Bool{Value: plan.Reprompt.Value}
-	} else {
-		result.Reprompt = types.Bool{Null: true}
-	}
+	result := convertItemToState(secureNote, plan)
 
 	diags = resp.State.Set(ctx, result)
 	resp.Diagnostics.Append(diags...)
@@ -173,26 +187,35 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 		return
 	}
 
-	var reprompt types.Bool
-	if !state.Reprompt.Null {
-		reprompt = types.Bool{Value: secureNote.Reprompt == 1}
-	} else {
-		reprompt = types.Bool{Null: true}
-	}
+	//var reprompt types.Bool
+	//if !state.Reprompt.Null {
+	//	reprompt = types.Bool{Value: secureNote.Reprompt == 1}
+	//} else {
+	//	reprompt = types.Bool{Null: true}
+	//}
+	//
+	//var favorite types.Bool
+	//if !state.Favorite.Null {
+	//	favorite = types.Bool{Value: secureNote.Favorite}
+	//} else {
+	//	favorite = types.Bool{Null: true}
+	//}
+	//
+	//newState := SecureNote{
+	//	Object:         types.String{Value: secureNote.Object},
+	//	ID:             types.String{Value: secureNote.ID},
+	//	OrganizationId: types.String{Value: secureNote.OrganizationId},
+	//	FolderID:       types.String{Value: secureNote.FolderID},
+	//	Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
+	//	Reprompt:       reprompt,
+	//	Name:           types.String{Value: secureNote.Name},
+	//	Notes:          types.String{Value: secureNote.Notes},
+	//	Favorite:       favorite,
+	//	CollectionIDs:  secureNote.CollectionIDs,
+	//	RevisionDate:   types.String{Value: secureNote.RevisionDate},
+	//}
 
-	newState := SecureNote{
-		Object:         types.String{Value: secureNote.Object},
-		ID:             types.String{Value: secureNote.ID},
-		OrganizationId: types.String{Value: secureNote.OrganizationId},
-		FolderID:       types.String{Value: secureNote.FolderID},
-		Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-		Reprompt:       reprompt,
-		Name:           types.String{Value: secureNote.Name},
-		Notes:          types.String{Value: secureNote.Notes},
-		Favorite:       types.Bool{Value: secureNote.Favorite},
-		CollectionIDs:  secureNote.CollectionIDs,
-		RevisionDate:   types.String{Value: secureNote.RevisionDate.String()},
-	}
+	newState := convertItemToState(secureNote, state)
 
 	diags = resp.State.Set(ctx, &newState)
 	resp.Diagnostics.Append(diags...)
@@ -234,7 +257,7 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 		}
 	}
 
-	secureNote, out, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
+	_, out, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating secure note",
@@ -243,34 +266,16 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 		return
 	}
 
-	var result = SecureNote{
-		Object:         types.String{Value: secureNote.Object},
-		ID:             types.String{Value: secureNote.ID},
-		OrganizationId: types.String{Value: secureNote.OrganizationId},
-		Type:           types.Number{Value: big.NewFloat(float64(secureNote.Type))},
-		Name:           types.String{Value: secureNote.Name},
-		Notes:          types.String{Value: secureNote.Notes},
-		CollectionIDs:  secureNote.CollectionIDs,
-		RevisionDate:   types.String{Value: secureNote.RevisionDate.String()},
+	secureNote, out, err := r.p.client.GetItem(secureNoteId)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating secure note",
+			fmt.Sprintf("Could create secure note: %s\n%s", out, err.Error()),
+		)
+		return
 	}
 
-	if !plan.FolderID.Null {
-		result.FolderID = types.String{Value: secureNote.FolderID}
-	} else {
-		result.FolderID = types.String{Null: true}
-	}
-
-	if !plan.Favorite.Null {
-		result.Favorite = types.Bool{Value: secureNote.Favorite}
-	} else {
-		result.Favorite = types.Bool{Null: true}
-	}
-
-	if !plan.Reprompt.Null {
-		result.Reprompt = types.Bool{Value: plan.Reprompt.Value}
-	} else {
-		result.Reprompt = types.Bool{Null: true}
-	}
+	var result = convertItemToState(secureNote, plan)
 
 	diags = resp.State.Set(ctx, result)
 	resp.Diagnostics.Append(diags...)
