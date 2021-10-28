@@ -1,7 +1,7 @@
 # Put this file in your HOME and change the path below to your own user name
 provider_installation {
   dev_overrides {
-      "registry.novisto.net/novisto/bitwarden" = "/home/marc/.terraform.d/plugins/registry.novisto.net/novisto/bitwarden/0.1.0/linux_amd64"
+    "registry.terraform.io/novisto/bitwarden" = "/home/USER/.terraform.d/plugins/registry.terraform.io/novisto/bitwarden/0.1.0/linux_amd64"
   }
 
   direct {}

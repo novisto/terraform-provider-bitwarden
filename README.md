@@ -1,5 +1,19 @@
 # Terraform Bitwarden Provider
 
+This provider allows managing BitWarden resources in Terraform.
+
+The supported features are based on our internal needs, so this plugin does
+not intend to support all features of BitWarden.
+
+## Prerequisites
+
+- Install the [`bw` CLI](https://bitwarden.com/help/article/cli/)
+- Login to BitWarden with `bw login`
+
+## Usage
+
+Provide the password for your BitWarden account using either the `BW_PASSWORD` environment
+variable or through the provider configuration. You are now ready to use the provider.
 
 ## Running locally
 
