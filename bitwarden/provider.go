@@ -72,11 +72,11 @@ func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProvide
 	}
 
 	// Create a new BitWarden client and set it to the provider client
-	c, out, err := NewClient(password)
+	c, err := NewClient(password)
 	if err != nil {
 		response.Diagnostics.AddError(
 			"Unable to create client",
-			fmt.Sprintf("Unable to create BitWarden client: %s\n%s", out, err.Error()),
+			fmt.Sprintf("Unable to create BitWarden client: %s", err.Error()),
 		)
 		return
 	}

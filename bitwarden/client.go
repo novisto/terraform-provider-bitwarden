@@ -3,6 +3,8 @@ package bitwarden
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 )
 
 type ItemLoginURI struct {
@@ -94,135 +96,135 @@ type Client struct {
 	Session  string
 }
 
-func NewClient(password string) (*Client, string, error) {
+func NewClient(password string) (*Client, error) {
 	c := Client{Password: password}
 
 	out, err := RunCommand("bw", "unlock", c.Password, "--raw")
 	if err != nil {
-		return nil, out, err
+		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 	c.Session = out
 
-	out, err = c.Sync()
+	err = c.Sync()
 	if err != nil {
-		return nil, out, err
+		return nil, err
 	}
 
-	return &c, "", nil
+	return &c, nil
 }
 
-func (c *Client) Sync() (string, error) {
+func (c *Client) Sync() error {
 	out, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
 	if err != nil {
-		return out, err
+		return errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
-	return "", nil
+	return nil
 }
 
-func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, string, error) {
-	out, err := c.Sync()
+func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
+	err := c.Sync()
 	if err != nil {
-		return nil, out, err
+		return nil, err
 	}
 
 	createPayload := PrepareSecureNoteCreate(secureNote)
 
 	marshal, err := json.Marshal(createPayload)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	b64payload := base64.StdEncoding.EncodeToString(marshal)
 
-	out, err = RunCommand(
+	out, err := RunCommand(
 		"bw", "create", "item", "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
 	)
 	if err != nil {
-		return nil, out, err
+		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 
 	var decoded Item
 	err = json.Unmarshal([]byte(out), &decoded)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	return &decoded, out, nil
+	return &decoded, nil
 }
 
-func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, string, error) {
-	out, err := c.Sync()
+func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, error) {
+	err := c.Sync()
 	if err != nil {
-		return nil, out, err
+		return nil, err
 	}
 
 	updatePayload := PrepareSecureNoteCreate(secureNote)
 
 	marshal, err := json.Marshal(updatePayload)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	b64payload := base64.StdEncoding.EncodeToString(marshal)
 
-	out, err = RunCommand(
+	out, err := RunCommand(
 		"bw", "edit", "item", id, "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
 	)
 	if err != nil {
-		return nil, out, err
+		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 
 	var decoded Item
 	err = json.Unmarshal([]byte(out), &decoded)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	return &decoded, out, nil
+	return &decoded, nil
 }
 
-func (c *Client) GetItem(id string) (*Item, string, error) {
-	out, err := c.Sync()
+func (c *Client) GetItem(id string) (*Item, error) {
+	err := c.Sync()
 	if err != nil {
-		return nil, out, err
+		return nil, err
 	}
 
-	out, err = RunCommand("bw", "get", "item", id, "--session", c.Session)
+	out, err := RunCommand("bw", "get", "item", id, "--session", c.Session)
 	if err != nil {
-		return nil, out, err
+		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 
 	var decoded Item
 	err = json.Unmarshal([]byte(out), &decoded)
 	if err != nil {
-		return nil, out, err
+		return nil, err
 	}
 
-	return &decoded, out, nil
+	return &decoded, nil
 }
 
-func (c *Client) MoveItem(id string, newOrgId string) (string, error) {
-	out, err := c.Sync()
+func (c *Client) MoveItem(id string, newOrgId string) error {
+	err := c.Sync()
 	if err != nil {
-		return out, err
+		return err
 	}
 
-	out, err = RunCommand("bw", "move", id, newOrgId, "--session", c.Session)
+	out, err := RunCommand("bw", "move", id, newOrgId, "--session", c.Session)
 	if err != nil {
-		return out, err
+		return errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 
-	return out, nil
+	return nil
 }
 
-func (c *Client) DeleteItem(id string) (string, error) {
-	out, err := c.Sync()
+func (c *Client) DeleteItem(id string) error {
+	err := c.Sync()
 	if err != nil {
-		return out, err
+		return err
 	}
 
-	out, err = RunCommand("bw", "delete", "item", id, "--session", c.Session)
+	out, err := RunCommand("bw", "delete", "item", id, "--session", c.Session)
 	if err != nil {
-		return out, err
+		return errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
 
-	return out, nil
+	return nil
 }

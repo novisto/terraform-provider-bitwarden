@@ -119,7 +119,7 @@ type resourceSecureNote struct {
 }
 
 func (r resourceSecureNote) ImportState(_ context.Context, _ tfsdk.ImportResourceStateRequest, _ *tfsdk.ImportResourceStateResponse) {
-	// Implement this I guess?
+	// Implement this at some point
 }
 
 func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
@@ -136,20 +136,20 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 		return
 	}
 
-	secureNote, out, err := r.p.client.CreateSecureNote(plan)
+	secureNote, err := r.p.client.CreateSecureNote(plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating secure note",
-			fmt.Sprintf("Could create secure note: %s\n%s", out, err.Error()),
+			fmt.Sprintf("Could not create secure note: %s", err.Error()),
 		)
 		return
 	}
 
-	secureNote, out, err = r.p.client.GetItem(secureNote.ID)
+	secureNote, err = r.p.client.GetItem(secureNote.ID)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating secure note",
-			fmt.Sprintf("Could create secure note: %s\n%s", out, err.Error()),
+			fmt.Sprintf("Could not read secure note after creation: %s", err.Error()),
 		)
 		return
 	}
@@ -178,11 +178,11 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 
 	secureNoteId := state.ID.Value
 
-	secureNote, out, err := r.p.client.GetItem(secureNoteId)
+	secureNote, err := r.p.client.GetItem(secureNoteId)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading secure note",
-			fmt.Sprintf("Could not read secure note ID %s: %s\n%s", secureNoteId, out, err.Error()),
+			fmt.Sprintf("Could not read secure note ID %s: %s", secureNoteId, err.Error()),
 		)
 		return
 	}
@@ -219,30 +219,30 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 	secureNoteId := state.ID.Value
 
 	if plan.OrganizationId.Value != state.OrganizationId.Value {
-		out, err := r.p.client.MoveItem(secureNoteId, plan.OrganizationId.Value)
+		err := r.p.client.MoveItem(secureNoteId, plan.OrganizationId.Value)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating secure note",
-				fmt.Sprintf("Could not move secure note ID %s to Org %s: %s\n%s", secureNoteId, plan.OrganizationId.Value, out, err.Error()),
+				fmt.Sprintf("Could not move secure note ID %s to Org %s: %s", secureNoteId, plan.OrganizationId.Value, err.Error()),
 			)
 			return
 		}
 	}
 
-	_, out, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
+	_, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating secure note",
-			fmt.Sprintf("Could update secure note %s: %s\n%s", secureNoteId, out, err.Error()),
+			fmt.Sprintf("Could not update secure note %s: %s", secureNoteId, err.Error()),
 		)
 		return
 	}
 
-	secureNote, out, err := r.p.client.GetItem(secureNoteId)
+	secureNote, err := r.p.client.GetItem(secureNoteId)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating secure note",
-			fmt.Sprintf("Could create secure note: %s\n%s", out, err.Error()),
+			"Error updating secure note",
+			fmt.Sprintf("Could read secure note after update: %s", err.Error()),
 		)
 		return
 	}
@@ -271,11 +271,11 @@ func (r resourceSecureNote) Delete(ctx context.Context, req tfsdk.DeleteResource
 
 	secureNoteId := state.ID.Value
 
-	out, err := r.p.client.DeleteItem(secureNoteId)
+	err := r.p.client.DeleteItem(secureNoteId)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting secure note",
-			fmt.Sprintf("Could not delete secure note with ID %s: %s\n%s", secureNoteId, out, err.Error()),
+			fmt.Sprintf("Could not delete secure note with ID %s: %s", secureNoteId, err.Error()),
 		)
 		return
 	}
