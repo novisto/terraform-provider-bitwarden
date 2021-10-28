@@ -122,11 +122,6 @@ func (c *Client) Sync() error {
 }
 
 func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
-	err := c.Sync()
-	if err != nil {
-		return nil, err
-	}
-
 	createPayload := PrepareSecureNoteCreate(secureNote)
 
 	marshal, err := json.Marshal(createPayload)
@@ -134,6 +129,8 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 		return nil, err
 	}
 	b64payload := base64.StdEncoding.EncodeToString(marshal)
+
+	RandSleep(5)
 
 	out, err := RunCommand(
 		"bw", "create", "item", "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
@@ -152,11 +149,6 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 }
 
 func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, error) {
-	err := c.Sync()
-	if err != nil {
-		return nil, err
-	}
-
 	updatePayload := PrepareSecureNoteCreate(secureNote)
 
 	marshal, err := json.Marshal(updatePayload)
@@ -164,6 +156,8 @@ func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, erro
 		return nil, err
 	}
 	b64payload := base64.StdEncoding.EncodeToString(marshal)
+
+	RandSleep(5)
 
 	out, err := RunCommand(
 		"bw", "edit", "item", id, "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
@@ -182,10 +176,7 @@ func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, erro
 }
 
 func (c *Client) GetItem(id string) (*Item, error) {
-	err := c.Sync()
-	if err != nil {
-		return nil, err
-	}
+	RandSleep(5)
 
 	out, err := RunCommand("bw", "get", "item", id, "--session", c.Session)
 	if err != nil {
@@ -202,10 +193,7 @@ func (c *Client) GetItem(id string) (*Item, error) {
 }
 
 func (c *Client) MoveItem(id string, newOrgId string) error {
-	err := c.Sync()
-	if err != nil {
-		return err
-	}
+	RandSleep(5)
 
 	out, err := RunCommand("bw", "move", id, newOrgId, "--session", c.Session)
 	if err != nil {
@@ -216,10 +204,7 @@ func (c *Client) MoveItem(id string, newOrgId string) error {
 }
 
 func (c *Client) DeleteItem(id string) error {
-	err := c.Sync()
-	if err != nil {
-		return err
-	}
+	RandSleep(5)
 
 	out, err := RunCommand("bw", "delete", "item", id, "--session", c.Session)
 	if err != nil {

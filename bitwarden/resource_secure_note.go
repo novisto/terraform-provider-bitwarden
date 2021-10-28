@@ -145,15 +145,6 @@ func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResource
 		return
 	}
 
-	secureNote, err = r.p.client.GetItem(secureNote.ID)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating secure note",
-			fmt.Sprintf("Could not read secure note after creation: %s", err.Error()),
-		)
-		return
-	}
-
 	result := convertItemToState(secureNote, plan)
 
 	diags = resp.State.Set(ctx, result)
@@ -229,20 +220,11 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 		}
 	}
 
-	_, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
+	secureNote, err := r.p.client.UpdateSecureNote(secureNoteId, plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating secure note",
 			fmt.Sprintf("Could not update secure note %s: %s", secureNoteId, err.Error()),
-		)
-		return
-	}
-
-	secureNote, err := r.p.client.GetItem(secureNoteId)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating secure note",
-			fmt.Sprintf("Could read secure note after update: %s", err.Error()),
 		)
 		return
 	}
