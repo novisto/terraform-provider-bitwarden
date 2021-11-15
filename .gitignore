@@ -20,3 +20,4 @@ bin
 tfplugindocs
 examples/*.tfstate*
 .terraform
+*.iml
