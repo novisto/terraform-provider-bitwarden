@@ -202,7 +202,7 @@ func (c *Client) GetItem(id string) (*Item, error) {
 	}
 
 	// This is a fix for BW cli that returns duplicated values for collectionIDs
-	decoded.CollectionIDs = unique(decoded.CollectionIDs)
+	decoded.CollectionIDs = Unique(decoded.CollectionIDs)
 
 	return &decoded, nil
 }
@@ -227,19 +227,4 @@ func (c *Client) DeleteItem(id string) error {
 	}
 
 	return nil
-}
-
-func unique(slice []string) []string {
-	// create a map with all the values as key
-	uniqMap := make(map[string]struct{})
-	for _, v := range slice {
-		uniqMap[v] = struct{}{}
-	}
-
-	// turn the map keys into a slice
-	uniqSlice := make([]string, 0, len(uniqMap))
-	for v := range uniqMap {
-		uniqSlice = append(uniqSlice, v)
-	}
-	return uniqSlice
 }
