@@ -3,6 +3,7 @@ package bitwarden
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -13,6 +14,12 @@ var providerErrorTitle = "Provider not configured"
 var providerErrorMessage = "The provider hasn't been configured before apply, likely because it depends on an unknown value from another resource. This leads to weird stuff happening, so we'd prefer if you didn't do that. Thanks!"
 
 func convertItemToState(item *Item, resource SecureNote) SecureNote {
+	var typedCollectionIDs []attr.Value
+
+	for _, v := range item.CollectionIDs {
+		typedCollectionIDs = append(typedCollectionIDs, types.String{Value: v})
+	}
+
 	var result = SecureNote{
 		Object:         types.String{Value: item.Object},
 		ID:             types.String{Value: item.ID},
@@ -20,7 +27,7 @@ func convertItemToState(item *Item, resource SecureNote) SecureNote {
 		Type:           types.Number{Value: big.NewFloat(float64(item.Type))},
 		Name:           types.String{Value: item.Name},
 		Notes:          types.String{Value: item.Notes},
-		CollectionIDs:  item.CollectionIDs,
+		CollectionIDs:  types.List{Elems: typedCollectionIDs, ElemType: types.StringType},
 		RevisionDate:   types.String{Value: item.RevisionDate},
 	}
 
@@ -118,11 +125,19 @@ type resourceSecureNote struct {
 	p provider
 }
 
-func (r resourceSecureNote) ImportState(_ context.Context, _ tfsdk.ImportResourceStateRequest, _ *tfsdk.ImportResourceStateResponse) {
+func (r resourceSecureNote) ImportState(
+	_ context.Context,
+	_ tfsdk.ImportResourceStateRequest,
+	_ *tfsdk.ImportResourceStateResponse,
+) {
 	// Implement this at some point
 }
 
-func (r resourceSecureNote) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceSecureNote) Create(
+	ctx context.Context,
+	req tfsdk.CreateResourceRequest,
+	resp *tfsdk.CreateResourceResponse,
+) {
 	if !r.p.configured {
 		resp.Diagnostics.AddError(providerErrorTitle, providerErrorMessage)
 		return
@@ -187,7 +202,11 @@ func (r resourceSecureNote) Read(ctx context.Context, req tfsdk.ReadResourceRequ
 	}
 }
 
-func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceSecureNote) Update(
+	ctx context.Context,
+	req tfsdk.UpdateResourceRequest,
+	resp *tfsdk.UpdateResourceResponse,
+) {
 	if !r.p.configured {
 		resp.Diagnostics.AddError(providerErrorTitle, providerErrorMessage)
 		return
@@ -214,7 +233,12 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating secure note",
-				fmt.Sprintf("Could not move secure note ID %s to Org %s: %s", secureNoteId, plan.OrganizationId.Value, err.Error()),
+				fmt.Sprintf(
+					"Could not move secure note ID %s to Org %s: %s",
+					secureNoteId,
+					plan.OrganizationId.Value,
+					err.Error(),
+				),
 			)
 			return
 		}
@@ -238,7 +262,11 @@ func (r resourceSecureNote) Update(ctx context.Context, req tfsdk.UpdateResource
 	}
 }
 
-func (r resourceSecureNote) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceSecureNote) Delete(
+	ctx context.Context,
+	req tfsdk.DeleteResourceRequest,
+	resp *tfsdk.DeleteResourceResponse,
+) {
 	if !r.p.configured {
 		resp.Diagnostics.AddError(providerErrorTitle, providerErrorMessage)
 		return

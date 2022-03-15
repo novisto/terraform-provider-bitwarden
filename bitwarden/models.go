@@ -13,6 +13,6 @@ type SecureNote struct {
 	Name           types.String `tfsdk:"name"`
 	Notes          types.String `tfsdk:"notes"`
 	Favorite       types.Bool   `tfsdk:"favorite"`
-	CollectionIDs  []string     `tfsdk:"collection_ids"`
+	CollectionIDs  types.List   `tfsdk:"collection_ids"`
 	RevisionDate   types.String `tfsdk:"revision_date"`
 }

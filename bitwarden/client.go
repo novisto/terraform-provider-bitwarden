@@ -1,6 +1,7 @@
 package bitwarden
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -74,9 +75,12 @@ func PrepareSecureNoteCreate(secureNote SecureNote) ItemCreate {
 		reprompt = 1
 	}
 
+	var collectionIDs []string
+	secureNote.CollectionIDs.ElementsAs(context.TODO(), collectionIDs, false)
+
 	return ItemCreate{
 		OrganizationId: secureNote.OrganizationId.Value,
-		CollectionIDs:  secureNote.CollectionIDs,
+		CollectionIDs:  collectionIDs,
 		FolderID:       folderId,
 		Type:           2,
 		Name:           secureNote.Name.Value,
@@ -160,7 +164,15 @@ func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, erro
 	RandSleep(5)
 
 	out, err := RunCommand(
-		"bw", "edit", "item", id, "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
+		"bw",
+		"edit",
+		"item",
+		id,
+		"--organizationid",
+		secureNote.OrganizationId.Value,
+		b64payload,
+		"--session",
+		c.Session,
 	)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
@@ -188,6 +200,9 @@ func (c *Client) GetItem(id string) (*Item, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// This is a fix for BW cli that returns duplicated values for collectionIDs
+	decoded.CollectionIDs = Unique(decoded.CollectionIDs)
 
 	return &decoded, nil
 }
