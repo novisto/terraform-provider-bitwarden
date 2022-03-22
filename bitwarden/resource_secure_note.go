@@ -27,8 +27,9 @@ func convertItemToState(item *Item, resource SecureNote) SecureNote {
 		Type:           types.Number{Value: big.NewFloat(float64(item.Type))},
 		Name:           types.String{Value: item.Name},
 		Notes:          types.String{Value: item.Notes},
-		CollectionIDs:  types.List{Elems: typedCollectionIDs, ElemType: types.StringType},
-		RevisionDate:   types.String{Value: item.RevisionDate},
+		//CollectionIDs:  types.List{Elems: typedCollectionIDs, ElemType: types.StringType},
+		CollectionIDs: item.CollectionIDs,
+		RevisionDate:  types.String{Value: item.RevisionDate},
 	}
 
 	if !resource.FolderID.Null {
@@ -155,7 +156,7 @@ func (r resourceSecureNote) Create(
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating secure note",
-			fmt.Sprintf("Could not create secure note: %s", err.Error()),
+			fmt.Sprintf("Could not create secure note with plan %#v\n error: %s", plan, err.Error()),
 		)
 		return
 	}

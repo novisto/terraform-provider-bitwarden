@@ -1,11 +1,17 @@
 package bitwarden
 
 import (
-	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-resty/resty/v2"
+	"github.com/hashicorp/go-version"
+	"github.com/samber/lo"
+	"math/rand"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type ItemLoginURI struct {
@@ -42,6 +48,10 @@ type Item struct {
 	RevisionDate   string         `json:"revisionDate"`
 }
 
+type ItemResponse struct {
+	Data Item `json:"data"`
+}
+
 // ItemCreate Represents the create and update payload for an item in the bw CLI
 type ItemCreate struct {
 	OrganizationId string          `json:"organizationId"`
@@ -75,12 +85,9 @@ func PrepareSecureNoteCreate(secureNote SecureNote) ItemCreate {
 		reprompt = 1
 	}
 
-	var collectionIDs []string
-	secureNote.CollectionIDs.ElementsAs(context.TODO(), collectionIDs, false)
-
 	return ItemCreate{
 		OrganizationId: secureNote.OrganizationId.Value,
-		CollectionIDs:  collectionIDs,
+		CollectionIDs:  secureNote.CollectionIDs,
 		FolderID:       folderId,
 		Type:           2,
 		Name:           secureNote.Name.Value,
@@ -100,130 +107,233 @@ type Client struct {
 	Session  string
 }
 
+type bwServeClient struct {
+	Command    *exec.Cmd
+	restClient *resty.Client
+}
+
+func bitwardenServe(password string) (*bwServeClient, error) {
+	bwClient := bwServeClient{}
+
+	bwPort := rand.Intn(65000-10000) + 10000
+
+	bwClient.Command = exec.Command("bw", "serve", "--port", strconv.Itoa(bwPort))
+	if err := bwClient.Command.Start(); err != nil {
+		return nil, err
+	}
+
+	bwClient.restClient = resty.New()
+	bwClient.restClient.SetBaseURL("http://localhost:" + strconv.Itoa(bwPort))
+
+	bwTimedout := true
+	var errorResp *resty.Response
+	var bwErr error
+	start := time.Now()
+	for time.Since(start) < time.Second*time.Duration(10) {
+		errorResp, bwErr = bwClient.restClient.R().Get("/status")
+
+		if bwErr == nil && errorResp.StatusCode() == 200 {
+			bwTimedout = false
+			break
+		}
+		time.Sleep(time.Second)
+
+	}
+	if bwTimedout {
+		bwClient.Close()
+		if bwErr != nil {
+			return nil, fmt.Errorf(
+				"bitwarden serve did not start in a reasonable time with error %s",
+				bwErr,
+			)
+		} else if errorResp != nil {
+			return nil, fmt.Errorf(
+				"bitwarden serve did not start in a reasonable time http error [%s] %s",
+				errorResp.StatusCode(),
+				errorResp.Body(),
+			)
+		} else {
+			return nil, fmt.Errorf("bitwarden serve did not start in a reasonable time")
+		}
+	}
+
+	resp, err := bwClient.restClient.R().SetBody(map[string]string{"password": password}).Post("/unlock")
+	if err != nil {
+		bwClient.Close()
+		return nil, err
+	}
+
+	if resp.StatusCode() != 200 {
+		bwClient.Close()
+		return nil, fmt.Errorf("error unlocking bitwarden\n%s", resp.Body())
+	}
+
+	err = bwClient.Sync()
+	if err != nil {
+		bwClient.Close()
+		return nil, err
+	}
+
+	return &bwClient, nil
+}
+
+func (bwClient *bwServeClient) Close() {
+	_ = bwClient.Command.Process.Kill()
+}
+
+func (bwClient *bwServeClient) Sync() error {
+	resp, err := bwClient.restClient.R().Post("/sync")
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode() != 200 {
+		return fmt.Errorf("error syncing\n%s", resp.Body())
+	}
+
+	return nil
+}
+
 func NewClient(password string) (*Client, error) {
 	c := Client{Password: password}
 
-	out, err := RunCommand("bw", "unlock", c.Password, "--raw")
+	out, err := RunCommand("bw", "--version")
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
 	}
-	c.Session = out
 
-	err = c.Sync()
+	requiredVersion, err := version.NewVersion("1.22.0")
 	if err != nil {
 		return nil, err
+	}
+
+	clientVersion, err := version.NewVersion(strings.TrimSpace(strings.ReplaceAll(out, "\n", "")))
+	if err != nil {
+		return nil, err
+	}
+
+	if clientVersion.LessThan(requiredVersion) {
+		return nil, fmt.Errorf("bitwarden client version(%s) must be equal or greater than 1.22.0", out)
 	}
 
 	return &c, nil
 }
 
-func (c *Client) Sync() error {
-	out, err := RunCommand("bw", "sync", "-f", "--session", c.Session)
-	if err != nil {
-		return errors.New(fmt.Sprintf("%s\n%s", out, err))
-	}
-	return nil
-}
-
 func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 	createPayload := PrepareSecureNoteCreate(secureNote)
 
-	marshal, err := json.Marshal(createPayload)
-	if err != nil {
-		return nil, err
-	}
-	b64payload := base64.StdEncoding.EncodeToString(marshal)
-
-	RandSleep(5)
-
-	out, err := RunCommand(
-		"bw", "create", "item", "--organizationid", secureNote.OrganizationId.Value, b64payload, "--session", c.Session,
-	)
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
-	}
-
-	var decoded Item
-	err = json.Unmarshal([]byte(out), &decoded)
+	bwClient, err := bitwardenServe(c.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	return &decoded, nil
+	resp, err := bwClient.restClient.R().SetBody(createPayload).Post("/object/item")
+	if err != nil {
+		return nil, err
+	}
+	bwClient.Close()
+
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("bitwarden error when creating secure note\n%s", resp.Body())
+	}
+
+	var decoded ItemResponse
+	err = json.Unmarshal(resp.Body(), &decoded)
+	if err != nil {
+		return nil, err
+	}
+
+	return &decoded.Data, nil
 }
 
 func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, error) {
 	updatePayload := PrepareSecureNoteCreate(secureNote)
 
-	marshal, err := json.Marshal(updatePayload)
-	if err != nil {
-		return nil, err
-	}
-	b64payload := base64.StdEncoding.EncodeToString(marshal)
-
-	RandSleep(5)
-
-	out, err := RunCommand(
-		"bw",
-		"edit",
-		"item",
-		id,
-		"--organizationid",
-		secureNote.OrganizationId.Value,
-		b64payload,
-		"--session",
-		c.Session,
-	)
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
-	}
-
-	var decoded Item
-	err = json.Unmarshal([]byte(out), &decoded)
+	bwClient, err := bitwardenServe(c.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	return &decoded, nil
+	resp, err := bwClient.restClient.R().SetBody(updatePayload).Put(fmt.Sprintf("/object/item/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	bwClient.Close()
+
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("bitwarden error when updating secure note\n%s", resp.Body())
+	}
+
+	var decoded ItemResponse
+	err = json.Unmarshal(resp.Body(), &decoded)
+	if err != nil {
+		return nil, err
+	}
+
+	return &decoded.Data, nil
 }
 
 func (c *Client) GetItem(id string) (*Item, error) {
-	RandSleep(5)
-
-	out, err := RunCommand("bw", "get", "item", id, "--session", c.Session)
+	bwClient, err := bitwardenServe(c.Password)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("%s\n%s", out, err))
+		return nil, err
 	}
 
-	var decoded Item
-	err = json.Unmarshal([]byte(out), &decoded)
+	resp, err := bwClient.restClient.R().Get(fmt.Sprintf("/object/item/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	bwClient.Close()
+
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("bitwarden error when fetching secure note\n%s", resp.Body())
+	}
+
+	var decoded ItemResponse
+	err = json.Unmarshal(resp.Body(), &decoded)
 	if err != nil {
 		return nil, err
 	}
 
 	// This is a fix for BW cli that returns duplicated values for collectionIDs
-	decoded.CollectionIDs = Unique(decoded.CollectionIDs)
+	decoded.Data.CollectionIDs = lo.Uniq[string](decoded.Data.CollectionIDs)
 
-	return &decoded, nil
+	return &decoded.Data, nil
 }
 
 func (c *Client) MoveItem(id string, newOrgId string) error {
-	RandSleep(5)
-
-	out, err := RunCommand("bw", "move", id, newOrgId, "--session", c.Session)
+	bwClient, err := bitwardenServe(c.Password)
 	if err != nil {
-		return errors.New(fmt.Sprintf("%s\n%s", out, err))
+		return err
+	}
+
+	resp, err := bwClient.restClient.R().Post(fmt.Sprintf("/move/%s/%s", id, newOrgId))
+	if err != nil {
+		return err
+	}
+	bwClient.Close()
+
+	if resp.StatusCode() != 200 {
+		return fmt.Errorf("bitwarden error when moving secure note\n%s", resp.Body())
 	}
 
 	return nil
 }
 
 func (c *Client) DeleteItem(id string) error {
-	RandSleep(5)
-
-	out, err := RunCommand("bw", "delete", "item", id, "--session", c.Session)
+	bwClient, err := bitwardenServe(c.Password)
 	if err != nil {
-		return errors.New(fmt.Sprintf("%s\n%s", out, err))
+		return err
+	}
+
+	resp, err := bwClient.restClient.R().Delete(fmt.Sprintf("/object/item/%s", id))
+	if err != nil {
+		return err
+	}
+	bwClient.Close()
+
+	if resp.StatusCode() != 200 {
+		return fmt.Errorf("bitwarden error when deleting secure note\n%s", resp.Body())
 	}
 
 	return nil
