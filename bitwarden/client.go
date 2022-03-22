@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/samber/lo"
 	"math/rand"
+	"net"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -115,15 +116,25 @@ type bwServeClient struct {
 func bitwardenServe(password string) (*bwServeClient, error) {
 	bwClient := bwServeClient{}
 
-	bwPort := rand.Intn(65000-10000) + 10000
+	bwPort := strconv.Itoa(rand.Intn(65000-10000) + 10000)
+	ln, err := net.Listen("tcp", ":"+bwPort)
 
-	bwClient.Command = exec.Command("bw", "serve", "--port", strconv.Itoa(bwPort))
+	for err != nil {
+		bwPort = strconv.Itoa(rand.Intn(65000-10000) + 10000)
+		ln, err = net.Listen("tcp", ":"+bwPort)
+	}
+	err = ln.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	bwClient.Command = exec.Command("bw", "serve", "--port", bwPort)
 	if err := bwClient.Command.Start(); err != nil {
 		return nil, err
 	}
 
 	bwClient.restClient = resty.New()
-	bwClient.restClient.SetBaseURL("http://localhost:" + strconv.Itoa(bwPort))
+	bwClient.restClient.SetBaseURL("http://localhost:" + bwPort)
 
 	bwTimedout := true
 	var errorResp *resty.Response
