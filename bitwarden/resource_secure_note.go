@@ -27,9 +27,8 @@ func convertItemToState(item *Item, resource SecureNote) SecureNote {
 		Type:           types.Number{Value: big.NewFloat(float64(item.Type))},
 		Name:           types.String{Value: item.Name},
 		Notes:          types.String{Value: item.Notes},
-		//CollectionIDs:  types.List{Elems: typedCollectionIDs, ElemType: types.StringType},
-		CollectionIDs: item.CollectionIDs,
-		RevisionDate:  types.String{Value: item.RevisionDate},
+		CollectionIDs:  item.CollectionIDs,
+		RevisionDate:   types.String{Value: item.RevisionDate},
 	}
 
 	if !resource.FolderID.Null {
