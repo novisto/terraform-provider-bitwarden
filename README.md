@@ -15,9 +15,12 @@ not intend to support all features of BitWarden.
 Provide the password for your BitWarden account using either the `BW_PASSWORD` environment
 variable or through the provider configuration. You are now ready to use the provider.
 
+You can also run `bw serve` yourself and provide the port on which it is running either the
+`BW_SERVE_PORT` environment variable or through the provier configuration.
+
 ## Running locally
 
-Local setup for development, you will need Go 1.17 and Terraform 1.0.3+
+Local setup for development, you will need Go 1.18 and Terraform 1.0.3+
 
 1. Copy the `.terraformrc.example` file into your HOME and change 
    the name to `.terraformrc` and the path inside to your own username

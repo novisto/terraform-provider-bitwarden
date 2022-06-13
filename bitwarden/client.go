@@ -105,7 +105,7 @@ func PrepareSecureNoteCreate(secureNote SecureNote) ItemCreate {
 
 type Client struct {
 	Password string
-	Session  string
+	Port     int64
 }
 
 type bwServeClient struct {
@@ -113,24 +113,29 @@ type bwServeClient struct {
 	restClient *resty.Client
 }
 
-func bitwardenServe(password string) (*bwServeClient, error) {
+func bitwardenServeAndUnlock(c *Client) (*bwServeClient, error) {
 	bwClient := bwServeClient{}
 
-	bwPort := strconv.Itoa(rand.Intn(65000-10000) + 10000)
-	ln, err := net.Listen("tcp", ":"+bwPort)
-
-	for err != nil {
+	var bwPort string
+	if c.Port == 0 {
 		bwPort = strconv.Itoa(rand.Intn(65000-10000) + 10000)
-		ln, err = net.Listen("tcp", ":"+bwPort)
-	}
-	err = ln.Close()
-	if err != nil {
-		return nil, err
-	}
+		ln, err := net.Listen("tcp", ":"+bwPort)
 
-	bwClient.Command = exec.Command("bw", "serve", "--port", bwPort)
-	if err := bwClient.Command.Start(); err != nil {
-		return nil, err
+		for err != nil {
+			bwPort = strconv.Itoa(rand.Intn(65000-10000) + 10000)
+			ln, err = net.Listen("tcp", ":"+bwPort)
+		}
+		err = ln.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		bwClient.Command = exec.Command("bw", "serve", "--port", bwPort)
+		if err := bwClient.Command.Start(); err != nil {
+			return nil, err
+		}
+	} else {
+		bwPort = strconv.Itoa(int(c.Port))
 	}
 
 	bwClient.restClient = resty.New()
@@ -154,21 +159,21 @@ func bitwardenServe(password string) (*bwServeClient, error) {
 		bwClient.Close()
 		if bwErr != nil {
 			return nil, fmt.Errorf(
-				"bitwarden serve did not start in a reasonable time with error %s",
+				"bitwarden serve did not answer in a reasonable time with error %s",
 				bwErr,
 			)
 		} else if errorResp != nil {
 			return nil, fmt.Errorf(
-				"bitwarden serve did not start in a reasonable time http error [%s] %s",
+				"bitwarden serve did not answer in a reasonable time http error [%s] %s",
 				errorResp.StatusCode(),
 				errorResp.Body(),
 			)
 		} else {
-			return nil, fmt.Errorf("bitwarden serve did not start in a reasonable time")
+			return nil, fmt.Errorf("bitwarden serve did not answer in a reasonable time")
 		}
 	}
 
-	resp, err := bwClient.restClient.R().SetBody(map[string]string{"password": password}).Post("/unlock")
+	resp, err := bwClient.restClient.R().SetBody(map[string]string{"password": c.Password}).Post("/unlock")
 	if err != nil {
 		bwClient.Close()
 		return nil, err
@@ -189,7 +194,9 @@ func bitwardenServe(password string) (*bwServeClient, error) {
 }
 
 func (bwClient *bwServeClient) Close() {
-	_ = bwClient.Command.Process.Kill()
+	if bwClient.Command != nil {
+		_ = bwClient.Command.Process.Kill()
+	}
 }
 
 func (bwClient *bwServeClient) Sync() error {
@@ -205,8 +212,8 @@ func (bwClient *bwServeClient) Sync() error {
 	return nil
 }
 
-func NewClient(password string) (*Client, error) {
-	c := Client{Password: password}
+func NewClient(password string, port int64) (*Client, error) {
+	c := Client{Password: password, Port: port}
 
 	out, err := RunCommand("bw", "--version")
 	if err != nil {
@@ -233,7 +240,7 @@ func NewClient(password string) (*Client, error) {
 func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 	createPayload := PrepareSecureNoteCreate(secureNote)
 
-	bwClient, err := bitwardenServe(c.Password)
+	bwClient, err := bitwardenServeAndUnlock(c)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +267,7 @@ func (c *Client) CreateSecureNote(secureNote SecureNote) (*Item, error) {
 func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, error) {
 	updatePayload := PrepareSecureNoteCreate(secureNote)
 
-	bwClient, err := bitwardenServe(c.Password)
+	bwClient, err := bitwardenServeAndUnlock(c)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +292,7 @@ func (c *Client) UpdateSecureNote(id string, secureNote SecureNote) (*Item, erro
 }
 
 func (c *Client) GetItem(id string) (*Item, error) {
-	bwClient, err := bitwardenServe(c.Password)
+	bwClient, err := bitwardenServeAndUnlock(c)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +320,7 @@ func (c *Client) GetItem(id string) (*Item, error) {
 }
 
 func (c *Client) MoveItem(id string, newOrgId string) error {
-	bwClient, err := bitwardenServe(c.Password)
+	bwClient, err := bitwardenServeAndUnlock(c)
 	if err != nil {
 		return err
 	}
@@ -332,7 +339,7 @@ func (c *Client) MoveItem(id string, newOrgId string) error {
 }
 
 func (c *Client) DeleteItem(id string) error {
-	bwClient, err := bitwardenServe(c.Password)
+	bwClient, err := bitwardenServeAndUnlock(c)
 	if err != nil {
 		return err
 	}
