@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"os"
+	"strconv"
 )
 
 func New() tfsdk.Provider {
@@ -27,15 +28,25 @@ func (p *provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Computed:  false,
 				Sensitive: true,
 			},
+			"bw_serve_port": {
+				Type:     types.Int64Type,
+				Optional: true,
+				Computed: false,
+			},
 		},
 	}, nil
 }
 
 type providerData struct {
-	Password types.String `tfsdk:"password"`
+	Password    types.String `tfsdk:"password"`
+	BwServePort types.Int64  `tfsdk:"bw_serve_port"`
 }
 
-func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProviderRequest, response *tfsdk.ConfigureProviderResponse) {
+func (p *provider) Configure(
+	ctx context.Context,
+	request tfsdk.ConfigureProviderRequest,
+	response *tfsdk.ConfigureProviderResponse,
+) {
 	// Retrieve provider data from configuration
 	var config providerData
 	diags := request.Config.Get(ctx, &config)
@@ -71,8 +82,34 @@ func (p *provider) Configure(ctx context.Context, request tfsdk.ConfigureProvide
 		return
 	}
 
+	bwServePort := int64(0)
+	if config.BwServePort.Unknown {
+		// Cannot connect to client with an unknown value
+		response.Diagnostics.AddError(
+			"Unable to create client",
+			"Cannot use unknown value as bwServePort",
+		)
+		return
+	}
+
+	if config.BwServePort.Null {
+		port := os.Getenv("BW_SERVE_PORT")
+		if port != "" {
+			p, err := strconv.Atoi(port)
+			if err != nil {
+				response.Diagnostics.AddError(
+					"Could not parse environment variable BW_SERVE_PORT to int.",
+					err.Error(),
+				)
+			}
+			bwServePort = int64(p)
+		}
+	} else {
+		bwServePort = config.BwServePort.Value
+	}
+
 	// Create a new BitWarden client and set it to the provider client
-	c, err := NewClient(password)
+	c, err := NewClient(password, bwServePort)
 	if err != nil {
 		response.Diagnostics.AddError(
 			"Unable to create client",
