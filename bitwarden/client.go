@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-resty/resty/v2"
-	"github.com/hashicorp/go-version"
-	"github.com/samber/lo"
 	"math/rand"
 	"net"
+	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-resty/resty/v2"
+	"github.com/hashicorp/go-version"
+	"github.com/samber/lo"
 )
 
 type ItemLoginURI struct {
@@ -68,6 +70,10 @@ type ItemCreate struct {
 	Card           *struct{}       `json:"card"`     // Format unknown
 	Identity       *struct{}       `json:"identity"` // Format unknown
 	Reprompt       int             `json:"reprompt"`
+}
+
+type BadRequestMessage struct {
+	Message string `json:"message"`
 }
 
 func PrepareSecureNoteCreate(secureNote SecureNote) ItemCreate {
@@ -140,6 +146,11 @@ func bitwardenServeAndUnlock(c *Client) (*bwServeClient, error) {
 
 	bwClient.restClient = resty.New()
 	bwClient.restClient.SetBaseURL("http://localhost:" + bwPort)
+	bwClient.restClient.SetRetryCount(10).SetRetryWaitTime(5 * time.Second).AddRetryCondition(
+		func(response *resty.Response, err error) bool {
+			return response.StatusCode() == http.StatusBadGateway || response.StatusCode() == http.StatusBadRequest
+		},
+	)
 
 	bwTimedout := true
 	var errorResp *resty.Response
