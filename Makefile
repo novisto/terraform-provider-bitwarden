@@ -3,7 +3,7 @@ HOSTNAME=registry.terraform.io
 NAMESPACE=novisto
 NAME=bitwarden
 BINARY=terraform-provider-${NAME}
-VERSION=0.4.0
+VERSION=0.4.1
 OS_ARCH=linux_amd64
 
 default: install
